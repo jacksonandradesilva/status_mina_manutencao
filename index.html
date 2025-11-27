@@ -3,11 +3,147 @@
 <head>
 <meta charset="UTF-8" />
 <title>MINA - MANUTENÇÃO</title>
-<link rel="stylesheet" href="stile.css" />
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #f5f5f5;
+  }
+  
+  h2 {
+    color: #333;
+    border-bottom: 2px solid #333;
+    padding-bottom: 10px;
+  }
+  
+  form {
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+  }
+  
+  label {
+    display: block;
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  
+  input, select {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  
+  button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 15px;
+    margin-right: 10px;
+  }
+  
+  button:hover {
+    background-color: #45a049;
+  }
+  
+  #limparBtn {
+    background-color: #f44336;
+  }
+  
+  #limparBtn:hover {
+    background-color: #d32f2f;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  
+  th, td {
+    border: 1px solid #ddd;
+    padding: 12px;
+    text-align: left;
+  }
+  
+  th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+  }
+  
+  tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  .status-parado {
+    color: red;
+    font-weight: bold;
+  }
+  
+  .status-liberado {
+    color: green;
+    font-weight: bold;
+  }
+  
+  .status-standby {
+    color: orange;
+    font-weight: bold;
+  }
+  
+  .btn {
+    padding: 5px 10px;
+    margin: 0 5px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  
+  .editar {
+    background-color: #2196F3;
+    color: white;
+  }
+  
+  .excluir {
+    background-color: #f44336;
+    color: white;
+  }
+  
+  .notification {
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+    display: none;
+  }
+  
+  .success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+</style>
 </head>
 <body>
 
 <h2>STATUS - MINA MANUTENÇÃO</h2>
+
+<!-- Notificação -->
+<div id="notification" class="notification"></div>
+
 <form id="equipamentoForm">
   <label for="nomeEquip">PAINEL DE OPERAÇÃO:</label>
   <input type="text" id="nomeEquip" required />
@@ -29,16 +165,19 @@
   <label for="horaFim">Horário Fim:</label>
   <input type="time" id="horaFim" />
   
-  <button type="submit">Cadastrar</button>
-  <button type="submit" id="limparBtn">Limpar</button>
-  
+  <button type="submit" id="submitBtn">Cadastrar</button>
+  <button type="button" id="limparBtn">Limpar</button>
 </form>
+
 <div style="text-align-last: left; margin-bottom: 20px;">
   <img src="Stratos.jpg" alt="Logomarca" style="max-width: 200px; height: auto;" />
-  </div>
+</div>
+
 <h2>STATUS MINA</h2>
 
-<table id="relatorioEquip">
+<div id="loading">Carregando dados...</div>
+
+<table id="relatorioEquip" style="display: none;">
   <thead>
     <tr>
       <th>Equipamento</th>
@@ -55,7 +194,34 @@
   </tbody>
 </table>
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
 <script>
+  // CONFIGURAÇÃO SIMPLES DO FIREBASE
+  // 1. Vá para https://console.firebase.google.com/
+  // 2. Crie um projeto ou selecione um existente
+  // 3. Clique em "Firestore Database" e crie o banco de dados
+  // 4. Vá em Configurações do Projeto > Contas de Serviço
+  // 5. Copie o código abaixo e substitua com suas credenciais:
+  
+  const firebaseConfig = {
+    apiKey: "AIzaSyDRDIDyF_iG5syKlL_x6AwY2JZX8EsU0Mk",
+    authDomain: "mina-manutencao-status.firebaseapp.com",
+    databaseURL: "https://mina-manutencao-status-default-rtdb.firebaseio.com",
+    projectId: "mina-manutencao-status",
+    storageBucket: "mina-manutencao-status.firebasestorage.app",
+    messagingSenderId: "671851397850",
+    appId: "1:671851397850:web:51f8b2bdedba11559e1be3"
+    
+  };
+
+  // Inicializar Firebase
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // Elementos DOM
   const form = document.getElementById('equipamentoForm');
   const nomeInput = document.getElementById('nomeEquip');
   const statusSelect = document.getElementById('statusEquip');
@@ -64,16 +230,25 @@
   const horaFimInput = document.getElementById('horaFim');
   const tabelaCorpo = document.querySelector('#relatorioEquip tbody');
   const limparBtn = document.getElementById('limparBtn');
+  const notificationElement = document.getElementById('notification');
+  const submitBtn = document.getElementById('submitBtn');
+  const loadingElement = document.getElementById('loading');
+  const tabelaElement = document.getElementById('relatorioEquip');
 
-limparBtn.addEventListener('click', () => {
-  form.reset();
-  editandoIndex = null;
-  nomeInput.focus();
-});
+  let editandoId = null;
 
-  let equipamentos = [];
-  let editandoIndex = null;
+  // Função para mostrar notificações
+  function showNotification(message, type) {
+    notificationElement.textContent = message;
+    notificationElement.className = `notification ${type}`;
+    notificationElement.style.display = 'block';
+    
+    setTimeout(() => {
+      notificationElement.style.display = 'none';
+    }, 5000);
+  }
 
+  // Função para formatar data e hora
   function formatDateTime(date) {
     const options = { 
       year: 'numeric', month: '2-digit', day: '2-digit', 
@@ -82,49 +257,66 @@ limparBtn.addEventListener('click', () => {
     return new Intl.DateTimeFormat('pt-BR', options).format(date);
   }
 
-  function renderTabela() {
-    tabelaCorpo.innerHTML = '';
-    equipamentos.forEach((equip, idx) => {
-      const tr = document.createElement('tr');
+  // Carregar dados do Firestore
+  function carregarDados() {
+    loadingElement.style.display = 'block';
+    tabelaElement.style.display = 'none';
+    
+    db.collection("equipamentos").orderBy("dataHoraCadastro", "desc")
+      .onSnapshot((querySnapshot) => {
+        tabelaCorpo.innerHTML = '';
+        
+        querySnapshot.forEach((doc) => {
+          const equip = doc.data();
+          const tr = document.createElement('tr');
 
-      const tdNome = document.createElement('td');
-      tdNome.textContent = equip.nome;
+          const tdNome = document.createElement('td');
+          tdNome.textContent = equip.nome;
 
-      const tdStatus = document.createElement('td');
-      tdStatus.textContent = equip.status.charAt(0).toUpperCase() + equip.status.slice(1);
-      tdStatus.className = `status-${equip.status}`;
+          const tdStatus = document.createElement('td');
+          tdStatus.textContent = equip.status.charAt(0).toUpperCase() + equip.status.slice(1);
+          tdStatus.className = `status-${equip.status}`;
 
-      const tdCausa = document.createElement('td');
-      tdCausa.textContent = equip.causa || '-';
+          const tdCausa = document.createElement('td');
+          tdCausa.textContent = equip.causa || '-';
 
-      const tdHoraInicio = document.createElement('td');
-      tdHoraInicio.textContent = equip.horaInicio || '-';
+          const tdHoraInicio = document.createElement('td');
+          tdHoraInicio.textContent = equip.horaInicio || '-';
 
-      const tdHoraFim = document.createElement('td');
-      tdHoraFim.textContent = equip.horaFim || '-';
+          const tdHoraFim = document.createElement('td');
+          tdHoraFim.textContent = equip.horaFim || '-';
 
-      const tdDataHora = document.createElement('td');
-      tdDataHora.textContent = equip.dataHoraCadastro || '-';
+          const tdDataHora = document.createElement('td');
+          tdDataHora.textContent = equip.dataHoraCadastro || '-';
 
-      const tdAcoes = document.createElement('td');
-      tdAcoes.innerHTML = `
-        <button class="btn editar" onclick="editarEquipamento(${idx})">Editar</button>
-        <button class="btn excluir" onclick="excluirEquipamento(${idx})">Excluir</button>
-      `;
+          const tdAcoes = document.createElement('td');
+          tdAcoes.innerHTML = `
+            <button class="btn editar" onclick="editarEquipamento('${doc.id}')">Editar</button>
+            <button class="btn excluir" onclick="excluirEquipamento('${doc.id}')">Excluir</button>
+          `;
 
-      tr.appendChild(tdNome);
-      tr.appendChild(tdStatus);
-      tr.appendChild(tdCausa);
-      tr.appendChild(tdHoraInicio);
-      tr.appendChild(tdHoraFim);
-      tr.appendChild(tdDataHora);
-      tr.appendChild(tdAcoes);
+          tr.appendChild(tdNome);
+          tr.appendChild(tdStatus);
+          tr.appendChild(tdCausa);
+          tr.appendChild(tdHoraInicio);
+          tr.appendChild(tdHoraFim);
+          tr.appendChild(tdDataHora);
+          tr.appendChild(tdAcoes);
 
-      tabelaCorpo.appendChild(tr);
-    });
+          tabelaCorpo.appendChild(tr);
+        });
+        
+        loadingElement.style.display = 'none';
+        tabelaElement.style.display = 'table';
+      }, (error) => {
+        console.error("Erro ao carregar dados: ", error);
+        loadingElement.textContent = "Erro ao carregar dados. Tente novamente.";
+        showNotification("Erro ao carregar dados.", "error");
+      });
   }
 
-  form.addEventListener('submit', function(event) {
+  // Adicionar ou editar equipamento
+  form.addEventListener('submit', async function(event) {
     event.preventDefault();
 
     const nome = nomeInput.value.trim();
@@ -133,10 +325,13 @@ limparBtn.addEventListener('click', () => {
     const horaInicio = horaInicioInput.value;
     const horaFim = horaFimInput.value;
 
-    if (!nome || !status) return;
+    if (!nome || !status) {
+      showNotification("Preencha todos os campos obrigatórios.", "error");
+      return;
+    }
 
     const dataHoraCadastro = formatDateTime(new Date());
-
+    
     const equipamentoObj = {
       nome,
       status,
@@ -146,34 +341,79 @@ limparBtn.addEventListener('click', () => {
       dataHoraCadastro
     };
 
-    if (editandoIndex !== null) {
-      equipamentos[editandoIndex] = equipamentoObj;
-      editandoIndex = null;
-    } else {
-      equipamentos.push(equipamentoObj);
+    try {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Salvando...";
+      
+      if (editandoId) {
+        // Atualizar equipamento existente
+        await db.collection("equipamentos").doc(editandoId).update(equipamentoObj);
+        showNotification("Equipamento atualizado com sucesso!", "success");
+      } else {
+        // Adicionar novo equipamento
+        await db.collection("equipamentos").add(equipamentoObj);
+        showNotification("Equipamento cadastrado com sucesso!", "success");
+      }
+      
+      form.reset();
+      editandoId = null;
+      submitBtn.textContent = "Cadastrar";
+      
+    } catch (error) {
+      console.error("Erro ao salvar equipamento: ", error);
+      showNotification("Erro ao salvar equipamento. Tente novamente.", "error");
+    } finally {
+      submitBtn.disabled = false;
     }
-
-    renderTabela();
-    form.reset();
   });
 
-  window.editarEquipamento = function(index) {
-    const equip = equipamentos[index];
-    nomeInput.value = equip.nome;
-    statusSelect.value = equip.status;
-    causaInput.value = equip.causa || '';
-    horaInicioInput.value = equip.horaInicio || '';
-    horaFimInput.value = equip.horaFim || '';
-    editandoIndex = index;
+  // Editar equipamento
+  window.editarEquipamento = async function(id) {
+    try {
+      const doc = await db.collection("equipamentos").doc(id).get();
+      if (doc.exists) {
+        const equip = doc.data();
+        nomeInput.value = equip.nome;
+        statusSelect.value = equip.status;
+        causaInput.value = equip.causa || '';
+        horaInicioInput.value = equip.horaInicio || '';
+        horaFimInput.value = equip.horaFim || '';
+        editandoId = id;
+        submitBtn.textContent = "Atualizar";
+        nomeInput.focus();
+        showNotification("Editando equipamento...", "success");
+      }
+    } catch (error) {
+      console.error("Erro ao carregar equipamento para edição: ", error);
+      showNotification("Erro ao carregar equipamento.", "error");
+    }
+  };
+
+  // Excluir equipamento
+  window.excluirEquipamento = async function(id) {
+    if (confirm("Tem certeza que deseja excluir este equipamento?")) {
+      try {
+        await db.collection("equipamentos").doc(id).delete();
+        showNotification("Equipamento excluído com sucesso!", "success");
+      } catch (error) {
+        console.error("Erro ao excluir equipamento: ", error);
+        showNotification("Erro ao excluir equipamento.", "error");
+      }
+    }
+  };
+
+  // Limpar formulário
+  limparBtn.addEventListener('click', () => {
+    form.reset();
+    editandoId = null;
+    submitBtn.textContent = "Cadastrar";
     nomeInput.focus();
-  };
+  });
 
-  window.excluirEquipamento = function(index) {
-    equipamentos.splice(index, 1);
-    renderTabela();
-  };
-
-  renderTabela();
+  // Inicializar aplicação
+  document.addEventListener('DOMContentLoaded', () => {
+    carregarDados();
+  });
 </script>
 
 </body>
